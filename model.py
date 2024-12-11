@@ -1,179 +1,65 @@
+import streamlit as st
 import pandas as pd
-import pandas_profiling as pp
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-import warnings
 import os
-import plotly.graph_objects as go
-import plotly.io as pio
 import pickle
-from sklearn.utils import resample
+import warnings
 
-# Metrics
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, auc, roc_curve
+warnings.filterwarnings("ignore", message="Trying to unpickle estimator")
 
-# Validation
-from sklearn.model_selection import train_test_split, cross_val_score, KFold
-from sklearn.pipeline import Pipeline, make_pipeline
+st.set_page_config(page_title="SmartCrop", page_icon="https://cdn.jsdelivr.net/gh/twitter/twemoji@master/assets/72x72/1f33f.png", layout='centered', initial_sidebar_state="collapsed")
 
-# Tuning
-from sklearn.model_selection import GridSearchCV
+def load_model(modelfile):
+    loaded_model = pickle.load(open(modelfile, 'rb'))
+    return loaded_model
 
-# Feature Extraction
-from sklearn.feature_selection import RFE
+def main():
+    # title
+    html_temp = """
+    <div>
+    <h1 style="color:MEDIUMSEAGREEN;text-align:center;"> SmartCrop: Intelligent Crop Recommendation 🌱 </h1>
+    </div>
+    """
+    st.markdown(html_temp, unsafe_allow_html=True)
 
-# Preprocessing
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, Normalizer, Binarizer, LabelEncoder
+    col = st.columns(1)[0]
 
-# Models
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
+    with col:
+        st.subheader(" Find out the most suitable crop to grow in your farm 👨‍🌾")
+        N = st.number_input("Nitrogen", 1, 10000)
+        P = st.number_input("Phosporus", 1, 10000)
+        K = st.number_input("Potassium", 1, 10000)
+        temp = st.number_input("Temperature", 0.0, 100000.0)
+        humidity = st.number_input("Humidity in %", 0.0, 100000.0)
+        ph = st.number_input("Ph", 0.0, 100000.0)
+        rainfall = st.number_input("Rainfall in mm", 0.0, 100000.0)
 
-# Ensembles
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import BaggingClassifier
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.ensemble import ExtraTreesClassifier
-
-warnings.filterwarnings('ignore')
-
-
-sns.set_style("whitegrid", {'axes.grid' : False})
-pio.templates.default = "plotly_white"
-
-# Analyze Data
-def explore_data(df):
-    print("Number of Instances and Attributes:", df.shape)
-    print('\n')
-    print('Dataset columns:',df.columns)
-    print('\n')
-    print('Data types of each columns: ', df.info())
-
-# Checking for Duplicates
-def checking_removing_duplicates(df):
-    count_dups = df.duplicated().sum()
-    print("Number of Duplicates: ", count_dups)
-    if count_dups >= 1:
-        df.drop_duplicates(inplace=True)
-        print('Duplicate values removed!')
-    else:
-        print('No Duplicate values')
-
-# Split Data to Training and Validation set
-def read_in_and_split_data(data, target):
-    X = data.drop(target, axis=1)
-    y = data[target]
-    X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.2, random_state=0)
-    return X_train, X_test, y_train, y_test
-
-# Spot-Check Algorithms
-def GetModel():
-    Models = []
-    Models.append(('LR'   , LogisticRegression()))
-    Models.append(('LDA'  , LinearDiscriminantAnalysis()))
-    Models.append(('KNN'  , KNeighborsClassifier()))
-    Models.append(('CART' , DecisionTreeClassifier()))
-    Models.append(('NB'   , GaussianNB()))
-    Models.append(('SVM'  , SVC(probability=True)))
-    return Models
-
-def ensemblemodels():
-    ensembles = []
-    ensembles.append(('AB'   , AdaBoostClassifier()))
-    ensembles.append(('GBM'  , GradientBoostingClassifier()))
-    ensembles.append(('RF'   , RandomForestClassifier()))
-    ensembles.append(( 'Bagging' , BaggingClassifier()))
-    ensembles.append(('ET', ExtraTreesClassifier()))
-    return ensembles
-
-# Spot-Check Normalized Models
-def NormalizedModel(nameOfScaler):
-    
-    if nameOfScaler == 'standard':
-        scaler = StandardScaler()
-    elif nameOfScaler =='minmax':
-        scaler = MinMaxScaler()
-    elif nameOfScaler == 'normalizer':
-        scaler = Normalizer()
-    elif nameOfScaler == 'binarizer':
-        scaler = Binarizer()
-
-    pipelines = []
-    pipelines.append((nameOfScaler+'LR'  , Pipeline([('Scaler', scaler),('LR'  , LogisticRegression())])))
-    pipelines.append((nameOfScaler+'LDA' , Pipeline([('Scaler', scaler),('LDA' , LinearDiscriminantAnalysis())])))
-    pipelines.append((nameOfScaler+'KNN' , Pipeline([('Scaler', scaler),('KNN' , KNeighborsClassifier())])))
-    pipelines.append((nameOfScaler+'CART', Pipeline([('Scaler', scaler),('CART', DecisionTreeClassifier())])))
-    pipelines.append((nameOfScaler+'NB'  , Pipeline([('Scaler', scaler),('NB'  , GaussianNB())])))
-    pipelines.append((nameOfScaler+'SVM' , Pipeline([('Scaler', scaler),('SVM' , SVC())])))
-    pipelines.append((nameOfScaler+'AB'  , Pipeline([('Scaler', scaler),('AB'  , AdaBoostClassifier())])  ))
-    pipelines.append((nameOfScaler+'GBM' , Pipeline([('Scaler', scaler),('GMB' , GradientBoostingClassifier())])  ))
-    pipelines.append((nameOfScaler+'RF'  , Pipeline([('Scaler', scaler),('RF'  , RandomForestClassifier())])  ))
-    pipelines.append((nameOfScaler+'ET'  , Pipeline([('Scaler', scaler),('ET'  , ExtraTreesClassifier())])  ))
-
-    return pipelines
-
-# Train Model
-def fit_model(X_train, y_train,models):
-    # Test options and evaluation metric
-    num_folds = 10
-    scoring = 'accuracy'
-
-    results = []
-    names = []
-    for name, model in models:
-        kfold = KFold(n_splits=num_folds, shuffle=True, random_state=0)
-        cv_results = cross_val_score(model, X_train, y_train, cv=kfold, scoring=scoring)
-        results.append(cv_results)
-        names.append(name)
-        msg = "%s: %f (%f)" % (name, cv_results.mean(), cv_results.std())
-        print(msg)
+        feature_list = [N, P, K, temp, humidity, ph, rainfall]
+        single_pred = np.array(feature_list).reshape(1, -1)
         
-    return names, results
+        if st.button('Predict'):
 
-# Save Trained Model
-def save_model(model,filename):
-    pickle.dump(model, open(filename, 'wb'))
+            # Load the model and access the model object
+            loaded_model = load_model('smartcrop_model.pkl')['model']
+            prediction = loaded_model.predict(single_pred)
+            col.write('''
+            ## Results 🔍 
+            ''')
+            col.success(f"{prediction.item().title()} are recommended by the A.I for your farm.")
 
-# Performance Measure
-def classification_metrics(model, conf_matrix):
-    print(f"Training Accuracy Score: {model.score(X_train, y_train) * 100:.1f}%")
-    print(f"Validation Accuracy Score: {model.score(X_test, y_test) * 100:.1f}%")
-    fig,ax = plt.subplots(figsize=(8,6))
-    sns.heatmap(pd.DataFrame(conf_matrix), annot = True, cmap = 'YlGnBu',fmt = 'g')
-    ax.xaxis.set_label_position('top')
-    plt.tight_layout()
-    plt.title('Confusion Matrix', fontsize=20, y=1.1)
-    plt.ylabel('Actual label', fontsize=15)
-    plt.xlabel('Predicted label', fontsize=15)
-    plt.show()
-    print(classification_report(y_test, y_pred))
-    
+    st.markdown("""
+    <div style="position: fixed; bottom: 10px; width: 100%; text-align: center;">
+        <p style="color: gray; font-size: 12px;">Created by Maanav Agarwal</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Load Dataset
-df = pd.read_csv('SmartCrop-Dataset.csv')
+hide_menu_style = """
+        <style>
+        .block-container {padding: 2rem 1rem 3rem;}
+        #MainMenu {visibility: hidden;}
+        </style>
+"""
+st.markdown(hide_menu_style, unsafe_allow_html=True)
 
-# Remove Outliers
-Q1 = df.quantile(0.25)
-Q3 = df.quantile(0.75)
-IQR = Q3 - Q1
-df_out = df[~((df < (Q1 - 1.5 * IQR)) |(df > (Q3 + 1.5 * IQR))).any(axis=1)]
-
-# Split Data to Training and Validation set
-target ='label'
-X_train, X_test, y_train, y_test = read_in_and_split_data(df, target)
-
-# Train model
-pipeline = make_pipeline(StandardScaler(),  GaussianNB())
-model = pipeline.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-conf_matrix = confusion_matrix(y_test,y_pred)
-classification_metrics(pipeline, conf_matrix)
-
-# save model
-save_model(model, 'model.pkl')
+if __name__ == '__main__':
+    main()

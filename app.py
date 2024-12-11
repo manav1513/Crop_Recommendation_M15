@@ -39,12 +39,14 @@ def main():
         
         if st.button('Predict'):
 
-            loaded_model = load_model('model.pkl')
+            # Load the model and access the model object
+            loaded_model = load_model('smartcrop_model.pkl')['model']
             prediction = loaded_model.predict(single_pred)
             col.write('''
-		    ## Results 🔍 
-		    ''')
+            ## Results 🔍 
+            ''')
             col.success(f"{prediction.item().title()} are recommended by the A.I for your farm.")
+
     #code for html ☘️ 🌾 🌳 👨‍🌾  🍃
     hide_menu_style = """
     <style>
